@@ -1,283 +1,185 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="hi">
 <head>
 <meta charset="UTF-8">
-<title>ANMOL SPECIAL MARIO</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Runner</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{
-  margin:0;
-  overflow:hidden;
-  background:#6ec6ff;
-}
-canvas{
-  display:block;
-  background:linear-gradient(#6ec6ff,#b3e5fc);
-}
+body{margin:0;overflow:hidden;background:#6ec6ff;}
+canvas{display:block;margin:auto;background:#b3e5fc;}
 </style>
 </head>
 
 <body>
-<canvas id="game"></canvas>
+<canvas id="game" width="360" height="640"></canvas>
 
 <script>
-const canvas = document.getElementById("game");
-const ctx = canvas.getContext("2d");
-
-/* ===== MOBILE FULL SIZE ===== */
-function resize(){
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-resize();
-window.addEventListener("resize", resize);
-
-/* ===== STORAGE ===== */
-let highScore = localStorage.getItem("highScore") || 0;
-
-/* ===== GAME STATE ===== */
-let gameStarted=false, gameOver=false;
-let score=0, cameraX=0;
+const c = document.getElementById("game");
+const ctx = c.getContext("2d");
 
 /* ===== PLAYER ===== */
-const player={
-  x:120, y:0,
-  w:40, h:50,
-  dx:3.4, dy:0,
-  gravity:0.9,
-  jump:-15,
-  grounded:false
-};
+let px = 80;
+let py = 480;
+let vy = 0;
+let grounded = true;
+const gravity = 1;
+const jump = -18;
 
 /* ===== GROUND ===== */
-let grounds=[], nextGroundX=0;
-const GAP_MIN=80, GAP_MAX=130;
+const groundY = 520;
+let grassX = 0;
 
-function groundY(){
-  return canvas.height - 90;
+/* ===== OBSTACLES ===== */
+let obstacles = [];
+const gap = 220;
+
+/* ===== STATE ===== */
+let speed = 4;
+let started = false;
+let gameOver = false;
+
+/* ===== SPEECH ===== */
+let speechUnlocked = false;
+let chantInterval = null;
+
+function speak(text){
+  if(!speechUnlocked) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "hi-IN";
+  speechSynthesis.speak(u);
 }
 
-function createGround(x){
-  return{
-    x:x,
-    y:groundY(),
-    w:Math.random()*220+240,
-    h:90
-  };
+function startChant(){
+  if(chantInterval) return;
+  chantInterval = setInterval(()=>{
+    if(!gameOver){
+      speak("मन्नु मन्नु");
+    }
+  }, 2000);
 }
 
-function initGround(){
-  grounds=[]; nextGroundX=0;
-  for(let i=0;i<6;i++){
-    let g=createGround(nextGroundX);
-    grounds.push(g);
-    nextGroundX+=g.w+(Math.random()*(GAP_MAX-GAP_MIN)+GAP_MIN);
-  }
+function stopChant(){
+  clearInterval(chantInterval);
+  chantInterval = null;
 }
 
-/* ===== AIR RECTANGLE PLATFORMS ===== */
-let blocks=[], nextBlockX=360;
-
-function blockY(){
-  return groundY() - 120;   // 👈 FIXED GAP
+/* ===== OBSTACLE ===== */
+function makeObstacle(x){
+  return { x:x, w:40, h:60+Math.random()*40 };
 }
-
-function createBlock(x){
-  return{
-    x:x,
-    y:blockY(),
-    w:canvas.width*0.35,
-    h:28
-  };
-}
-
-function initBlocks(){
-  blocks=[]; nextBlockX=360;
-  for(let i=0;i<4;i++){
-    blocks.push(createBlock(nextBlockX));
-    nextBlockX+=canvas.width*0.7;
-  }
-}
-
-/* ===== BUTTON ===== */
-const btn={
-  w:220, h:52,
-  get x(){return canvas.width/2-this.w/2},
-  get y(){return canvas.height/2+40}
-};
 
 /* ===== RESET ===== */
-function resetGame(){
-  if(score>highScore){
-    highScore=score;
-    localStorage.setItem("highScore",highScore);
+function reset(){
+  py = 480;
+  vy = 0;
+  grounded = true;
+  obstacles = [];
+  for(let i=1;i<=5;i++){
+    obstacles.push(makeObstacle(i*gap+300));
   }
-
-  gameStarted=false;
-  gameOver=false;
-  score=0;
-  cameraX=0;
-
-  player.x=120;
-  player.y=groundY()-player.h;   // 👈 START ON GROUND
-  player.dy=0;
-  player.grounded=true;
-
-  initGround();
-  initBlocks();
+  started = false;
+  gameOver = false;
+  stopChant();
 }
 
-/* ===== TOUCH CONTROL ===== */
-function tap(e){
-  const r=canvas.getBoundingClientRect();
-  const x=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
-  const y=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
+/* ===== INPUT ===== */
+c.addEventListener("touchstart", tap);
+c.addEventListener("click", tap);
 
-  if(!gameStarted){
-    if(x>btn.x&&x<btn.x+btn.w&&y>btn.y&&y<btn.y+btn.h){
-      gameStarted=true;
-    }
+function tap(){
+  speechUnlocked = true; // 🔓 unlock audio
+
+  if(!started){
+    started = true;
+    startChant();
     return;
   }
 
   if(gameOver){
-    if(x>btn.x&&x<btn.x+btn.w&&y>btn.y&&y<btn.y+btn.h){
-      resetGame();
-    }
+    reset();
     return;
   }
 
-  // TAP ANYWHERE TO JUMP
-  if(player.grounded){
-    player.dy=player.jump;
-    player.grounded=false;
+  if(grounded){
+    vy = jump;
+    grounded = false;
   }
 }
 
-canvas.addEventListener("touchstart",tap);
-canvas.addEventListener("click",tap);
-
 /* ===== UPDATE ===== */
 function update(){
-  if(!gameStarted||gameOver) return;
+  if(!started || gameOver) return;
 
-  player.x+=player.dx;
-  cameraX+=player.dx;
-  score++;
+  // player physics
+  vy += gravity;
+  py += vy;
 
-  player.dy+=player.gravity;
-  player.y+=player.dy;
-  player.grounded=false;
+  if(py >= 480){
+    py = 480;
+    vy = 0;
+    grounded = true;
+  }
 
-  // Ground collision
-  grounds.forEach(g=>{
-    const okX=player.x+player.w>g.x+4&&player.x<g.x+g.w-4;
-    const land=player.y+player.h<=g.y+14 &&
-               player.y+player.h+player.dy>=g.y;
-    if(okX&&land&&player.dy>=0){
-      player.y=g.y-player.h;
-      player.dy=0;
-      player.grounded=true;
+  // grass move
+  grassX -= speed;
+  if(grassX <= -40) grassX = 0;
+
+  // obstacles move
+  obstacles.forEach(o => o.x -= speed);
+
+  // recycle
+  if(obstacles[0].x + obstacles[0].w < 0){
+    obstacles.shift();
+    obstacles.push(makeObstacle(obstacles[obstacles.length-1].x + gap));
+  }
+
+  // collision
+  obstacles.forEach(o=>{
+    if(
+      px + 30 > o.x &&
+      px < o.x + o.w &&
+      py + 30 > groundY - o.h
+    ){
+      gameOver = true;
+      stopChant();
+      speak("मन्नु का भोसड़ा फट गया");
     }
   });
-
-  // Air platform collision
-  blocks.forEach(b=>{
-    const landTop=
-      player.dy>=0 &&
-      player.y+player.h<=b.y+12 &&
-      player.y+player.h+player.dy>=b.y &&
-      player.x+player.w>b.x+6 &&
-      player.x<b.x+b.w-6;
-
-    if(landTop){
-      player.y=b.y-player.h;
-      player.dy=0;
-      player.grounded=true;
-    }
-
-    const sideHit=
-      player.x+player.w>b.x &&
-      player.x<b.x+b.w &&
-      player.y+player.h>b.y+6 &&
-      player.y<b.y+b.h-6 &&
-      !landTop;
-
-    if(sideHit){
-      gameOver=true;
-    }
-  });
-
-  // recycle ground
-  if(grounds[0].x+grounds[0].w<cameraX){
-    grounds.shift();
-    let g=createGround(nextGroundX);
-    grounds.push(g);
-    nextGroundX+=g.w+(Math.random()*(GAP_MAX-GAP_MIN)+GAP_MIN);
-  }
-
-  // recycle blocks
-  if(blocks[0].x+blocks[0].w<cameraX){
-    blocks.shift();
-    blocks.push(createBlock(nextBlockX));
-    nextBlockX+=canvas.width*0.7;
-  }
-
-  // fall
-  if(player.y>canvas.height+80){
-    gameOver=true;
-  }
 }
 
 /* ===== DRAW ===== */
 function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0,0,c.width,c.height);
 
-  // ground
-  ctx.fillStyle="#2e7d32";
-  grounds.forEach(g=>{
-    ctx.fillRect(g.x-cameraX,g.y,g.w,g.h);
-  });
+  // grass
+  for(let i=0;i<10;i++){
+    ctx.fillStyle="#2e7d32";
+    ctx.fillRect(i*40+grassX, groundY, 40, 120);
+    ctx.fillStyle="#66bb6a";
+    ctx.fillRect(i*40+grassX, groundY, 40, 6);
+  }
 
-  // air platforms
-  ctx.fillStyle="#ffca28";
-  blocks.forEach(b=>{
-    ctx.fillRect(b.x-cameraX,b.y,b.w,b.h);
+  // obstacles
+  ctx.fillStyle="#8d6e63";
+  obstacles.forEach(o=>{
+    ctx.fillRect(o.x, groundY-o.h, o.w, o.h);
   });
 
   // player
-  ctx.fillStyle="#e53935";
-  ctx.fillRect(player.x-cameraX,player.y,player.w,player.h);
+  ctx.font="36px serif";
+  ctx.fillText("👅", px, py+32);
 
-  // score
+  // UI
   ctx.fillStyle="#000";
   ctx.font="18px Arial";
-  ctx.fillText("Score: "+score,20,30);
-  ctx.fillText("High: "+highScore,20,55);
+  if(!started) ctx.fillText("TAP TO START",100,300);
 
-  // overlays
-  if(!gameStarted||gameOver){
-    ctx.fillStyle="rgba(0,0,0,0.7)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    if(gameOver){
-      ctx.save();
-      ctx.textAlign="center";
-      ctx.font="bold 32px Arial";
-      ctx.shadowColor="yellow";
-      ctx.shadowBlur=18;
-      ctx.fillStyle="#ffeb3b";
-      ctx.fillText("ANMOL MERA BAAP HAI",canvas.width/2,canvas.height/2-20);
-      ctx.restore();
-    }
-
-    ctx.fillStyle="#d32f2f";
-    ctx.fillRect(btn.x,btn.y,btn.w,btn.h);
+  if(gameOver){
+    ctx.fillStyle="red";
+    ctx.fillRect(80,300,200,60);
     ctx.fillStyle="#fff";
-    ctx.textAlign="center";
-    ctx.font="20px Arial";
-    ctx.fillText(gameOver?"RESTART":"START",btn.x+btn.w/2,btn.y+34);
-    ctx.textAlign="left";
+    ctx.fillText("RESTART",130,340);
   }
 }
 
@@ -288,7 +190,7 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-resetGame();
+reset();
 loop();
 </script>
 </body>
